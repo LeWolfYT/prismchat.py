@@ -1,6 +1,4 @@
-from _socket import _RetAddress
 import http.server as s
-from socketserver import _RequestType, BaseServer
 import requests as r
 import hashlib as h
 import queue as kyew #ha-ha, i could do stand-up.
@@ -9,7 +7,7 @@ import rsa as rs
 import os
 q = kyew
 
-messagesq = q.Queue()
+messagesq = []
 
 dbfile = os.path.join(os.path.realpath(os.path.dirname(__file__)), "db.json")
 tmpfile = os.path.join(os.path.realpath(os.path.dirname(__file__)), "tmp.json")
@@ -54,8 +52,8 @@ class Instructions:
     SELF_KEY_ENCRYPTED = 0x20
 
 class Server(s.BaseHTTPRequestHandler):
-    def __init__(self, request: _RequestType, client_address: _RetAddress, server: BaseServer, hmm=None) -> None:
-        self.q = hmm
+    def __init__(self, request, client_address, server, hmm=messagesq) -> None:
+        self.que = hmm
         super().__init__(request, client_address, server)
     def do_GET(self):
         def send_head(code=200, ctype="text/html"):
@@ -88,20 +86,32 @@ class Server(s.BaseHTTPRequestHandler):
                 pass
             case Instructions.MESSAGE:
                 print(f"GOT MESSAGE {args['message']}")
-                self.q.put(args['message'])
-                print(f"CURRENT KYUWEWE {self.q}")
+                self.que.append(args['message'])
+                print(f"CURRENT KYUWEWE {self.que}")
                 return {"status": Instructions.SUCCESS}
             case Instructions.READ:
-                return {"status": Instructions.SUCCESS}
+                return {"status": Instructions.SUCCESS, "messages": self.que}
+            case _:
+                return {"status": Instructions.INVALID}
 
     def do_POST(self):
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()
         
-        length = int(self.headers.get('content-length'))
-        data = j.loads(self.rfile.read(length))
+        def output(jsondt):
+            self.wfile.write(bytes(j.dumps(jsondt), encoding="utf-8"))
         
+        length = int(self.headers.get('content-length'))
+        try:
+            data = j.loads(self.rfile.read(length))
+        except:
+            output({"status": Instructions.INVALID})
+            return
+        
+        if not "actions" in data:
+            output({"status": Instructions.INVALID})
+            return
         actions = data["actions"]
         
         returnval = {"actions": []}
@@ -110,17 +120,20 @@ class Server(s.BaseHTTPRequestHandler):
             returnval["actions"].append(self.run_instruction(action["instruction"], action["params"]))
         
         output(returnval)
-        
-        def output(jsondt):
-            self.wfile.write(bytes(j.dumps(jsondt), encoding="utf-8"))
 
 port = 8080
+port = 5743
 
 iphost = "localhost"
+iphost = "192.168.1.172"
 try:
     server = s.HTTPServer((iphost, port), Server)
-    server.que = messagesq
+except:
+    print("egg")
+
+try:
+    server.__setattr__("que", messagesq)
     print("THE SERVER IS ONLINE ON PORT " + str(port))
     server.serve_forever()
 except:
-    pass
+    print("egg")

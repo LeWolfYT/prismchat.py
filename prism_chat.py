@@ -63,3 +63,6 @@ class Receiver:
 
     def getMultiple(self, server_addr: str, count: int):
         return self.getAll(server_addr)[-count::]
+
+if __name__ == "__main__":
+    send("http://108.32.95.148:80", {"author": "egg"}, "alibaba")
