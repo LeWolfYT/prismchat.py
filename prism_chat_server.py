@@ -64,6 +64,7 @@ class Server(s.BaseHTTPRequestHandler):
         send_head(code=405)
     
     def run_instruction(self, inst, args):
+        print(inst, args)
         match inst:
             case Instructions.NULL:
                 return {Instructions.NULL}
@@ -85,11 +86,15 @@ class Server(s.BaseHTTPRequestHandler):
                 #the client sent a key
                 pass
             case Instructions.MESSAGE:
-                print(f"GOT MESSAGE {args['message']}")
-                self.que.append(args['message'])
-                print(f"CURRENT KYUWEWE {self.que}")
-                return {"status": Instructions.SUCCESS}
+                if "message" in args:
+                    print(f"GOT MESSAGE {args['message']}")
+                    self.que.append(args['message'])
+                    #print(f"CURRENT KYUWEWE {self.que}")
+                    return {"status": Instructions.SUCCESS}
+                else:
+                    return {"status": Instructions.INVALID}
             case Instructions.READ:
+                print(f"GOT BAD {args}")
                 return {"status": Instructions.SUCCESS, "messages": self.que}
             case _:
                 return {"status": Instructions.INVALID}
