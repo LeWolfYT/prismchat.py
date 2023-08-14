@@ -1,13 +1,15 @@
 import http.server as s
+import queue as kyew #ha-ha, i could do stand-up.
 import requests as r
 import hashlib as h
-import queue as kyew #ha-ha, i could do stand-up.
 import json as j
 import rsa as rs
 import os
 q = kyew
 
 messagesq = []
+inactive_keys = []
+active_keys = {}
 
 dbfile = os.path.join(os.path.realpath(os.path.dirname(__file__)), "db.json")
 tmpfile = os.path.join(os.path.realpath(os.path.dirname(__file__)), "tmp.json")
@@ -69,12 +71,14 @@ class Server(s.BaseHTTPRequestHandler):
             case Instructions.NULL:
                 return {Instructions.NULL}
             case Instructions.LOGIN:
+                if not ("username" in args and "password" in args and "auth_key" in args):
+                    return {"status": Instructions.INVALID}
                 un = args["username"]
                 ps = args["password"]
                 with open(dbfile, "r") as fil:
                     js = j.loads(fil.read())
-                if js.has_key(un):
-                    if js["un"] == ps:
+                if un in js:
+                    if js["account"] == ps:
                         return {"status": Instructions.SUCCESS}
                     else:
                         return {"status": Instructions.FAILURE}
@@ -84,7 +88,8 @@ class Server(s.BaseHTTPRequestHandler):
                 return {"status": Instructions.SUCCESS, "key": pkey} #send the public key to the client
             case Instructions.SELF_KEY:
                 #the client sent a key
-                pass
+                #add it to the inactive keys
+                inactive_keys.append(rs.decrypt(str(args["key"]).encode(), rkey))
             case Instructions.MESSAGE:
                 if "message" in args:
                     print(f"GOT MESSAGE {args['message']}")
@@ -92,9 +97,9 @@ class Server(s.BaseHTTPRequestHandler):
                     #print(f"CURRENT KYUWEWE {self.que}")
                     return {"status": Instructions.SUCCESS}
                 else:
+                    print(f"GOT BAD {args}")
                     return {"status": Instructions.INVALID}
             case Instructions.READ:
-                print(f"GOT BAD {args}")
                 return {"status": Instructions.SUCCESS, "messages": self.que}
             case _:
                 return {"status": Instructions.INVALID}
@@ -122,7 +127,11 @@ class Server(s.BaseHTTPRequestHandler):
         returnval = {"actions": []}
         
         for action in actions:
-            returnval["actions"].append(self.run_instruction(action["instruction"], action["params"]))
+            if "params" in action:
+                params = action["params"]
+            else:
+                params = None
+            returnval["actions"].append(self.run_instruction(action["instruction"], params))
         
         output(returnval)
 
