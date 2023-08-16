@@ -28,7 +28,7 @@ class Instructions:
     TIME = 0x7
     REGISTER = 0x8
     MESSAGE = 0x9
-    STATUS = 0xA
+    EDIT = 0xA
     SET_STATUS = 0xB
     GET_STATUS = 0xC
     USERNAME = 0xD
@@ -42,16 +42,17 @@ class Instructions:
     INVALID = 0x14
     NOT_FOUND = 0x15
     DEFAULT = 0x16
-    RESTRICTED = 0x17
+    LOGOUT = 0x17
     ERROR = 0x18
-    COUNT = 0x19
-    NUMBER = 0x1A
-    ARRAY = 0x1B
-    STRING = 0x1C
-    DATA = 0x1D
-    AUTHOR = 0x1E
-    SELF_KEY = 0x1F
-    SELF_KEY_ENCRYPTED = 0x20
+    ACTIVE = 0x19
+    RESTRICTED = 0x1A
+    COFFEE = 0x1B
+    TEA = 0x1C
+    IM_A_TEAPOT = 0x1D
+    IM_A_COFFEE_POT = 0x1E
+    AUTHOR = 0x1F
+    SELF_KEY = 0x20
+    SELF_KEY_ENCRYPTED = 0x21
 
 class Server(s.BaseHTTPRequestHandler):
     def __init__(self, request, client_address, server, hmm=messagesq) -> None:
@@ -73,8 +74,19 @@ class Server(s.BaseHTTPRequestHandler):
             case Instructions.LOGIN:
                 if not ("username" in args and "password" in args and "auth_key" in args):
                     return {"status": Instructions.INVALID}
-                un = args["username"]
-                ps = args["password"]
+                auth = rs.decrypt(args["auth_key"].encode(), rkey).decode()
+                try:
+                    un = rs.decrypt(args["username"].encode(), rkey).decode()
+                except rs.DecryptionError:
+                    return {"status": Instructions.AUTH_KEY}
+                except:
+                    return {"status": Instructions.ERROR}
+                try:
+                    ps = rs.decrypt(args["password"].encode(), rkey).decode()
+                except rs.DecryptionError:
+                    return {"status": Instructions.AUTH_KEY}
+                except:
+                    return {"status": Instructions.ERROR}
                 with open(dbfile, "r") as fil:
                     js = j.loads(fil.read())
                 if un in js:
@@ -89,10 +101,13 @@ class Server(s.BaseHTTPRequestHandler):
             case Instructions.SELF_KEY:
                 #the client sent a key
                 #add it to the inactive keys
-                inactive_keys.append(rs.decrypt(str(args["key"]).encode(), rkey))
+                inactive_keys.append(rs.decrypt(str(args["key"]).encode(), rkey).decode())
             case Instructions.MESSAGE:
                 if "message" in args:
-                    print(f"GOT MESSAGE {args['message']}")
+                    try:
+                        print(f"GOT MESSAGE {rs.decrypt(args['message']['content'], active_keys[args['message']['author']['username']])}")
+                    except rs.DecryptionError:
+                        return {"status": Instructions.SELF_KEY_ENCRYPTED}
                     self.que.append(args['message'])
                     #print(f"CURRENT KYUWEWE {self.que}")
                     return {"status": Instructions.SUCCESS}
