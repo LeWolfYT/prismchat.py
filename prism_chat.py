@@ -41,6 +41,12 @@ class Instructions:
     AUTHOR = 0x1E
     SELF_KEY = 0x1F
     SELF_KEY_ENCRYPTED = 0x20
+    CREATE_CONVERSATION = 0x21
+    ADD_PARTICIPANT = 0x22
+    REMOVE_PARTICIPANT = 0x23
+    TYPE = 0x24
+    GET = 0x25
+    USERS = 0x26
 
 def login(username: str, password: str, server_addr: str, auth_key=None):
     return r.post(server_addr, json={"actions": [{"instruction": Instructions.LOGIN, "params": {"username": username, "password": h.sha256(password)}}]}).json()[0]["status"]
