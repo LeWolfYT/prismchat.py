@@ -1,13 +1,11 @@
 import http.server as s
 import requests as r
 import hashlib as h
-import queue as kyew #ha-ha, i could do stand-up.
 import json as j
 import rsa as rs
 import os
-q = kyew
 
-messagesq = []
+messagesq = {}
 
 dbfile = os.path.join(os.path.realpath(os.path.dirname(__file__)), "db.json")
 tmpfile = os.path.join(os.path.realpath(os.path.dirname(__file__)), "tmp.json")
@@ -50,6 +48,12 @@ class Instructions:
     AUTHOR = 0x1E
     SELF_KEY = 0x1F
     SELF_KEY_ENCRYPTED = 0x20
+    CREATE_CONVERSATION = 0x21
+    ADD_PARTICIPANT = 0x22
+    REMOVE_PARTICIPANT = 0x23
+    TYPE = 0x24
+    GET = 0x25
+    USERS = 0x26
 
 class Server(s.BaseHTTPRequestHandler):
     def __init__(self, request, client_address, server, hmm=messagesq) -> None:
@@ -63,7 +67,7 @@ class Server(s.BaseHTTPRequestHandler):
         
         send_head(code=405)
     
-    def run_instruction(self, inst, args):
+    def run_instruction(self, inst, args, d, path=None):
         print(inst, args)
         match inst:
             case Instructions.NULL:
@@ -88,14 +92,14 @@ class Server(s.BaseHTTPRequestHandler):
             case Instructions.MESSAGE:
                 if "message" in args:
                     print(f"GOT MESSAGE {args['message']}")
-                    self.que.append(args['message'])
+                    self.que[d].append(args['message'])
                     #print(f"CURRENT KYUWEWE {self.que}")
                     return {"status": Instructions.SUCCESS}
                 else:
                     return {"status": Instructions.INVALID}
             case Instructions.READ:
                 print(f"GOT BAD {args}")
-                return {"status": Instructions.SUCCESS, "messages": self.que}
+                return {"status": Instructions.SUCCESS, "messages": self.que[d]}
             case _:
                 return {"status": Instructions.INVALID}
 
@@ -111,19 +115,21 @@ class Server(s.BaseHTTPRequestHandler):
         try:
             data = j.loads(self.rfile.read(length))
         except:
-            output({"status": Instructions.INVALID})
+            output({"actions": [{"status": Instructions.INVALID}]})
             return
         
         if not "actions" in data:
-            output({"status": Instructions.INVALID})
+            output({"actions": [{"status": Instructions.INVALID}]})
             return
         actions = data["actions"]
         
         returnval = {"actions": []}
         
         for action in actions:
-            returnval["actions"].append(self.run_instruction(action["instruction"], action["params"]))
-        
+            if self.path[1:] in self.que:
+                returnval["actions"].append(self.run_instruction(action["instruction"], action["params"], self.path))
+            else:
+                returnval["actions"].append({"status": Instructions.INVALID})
         output(returnval)
 
 port = 8080
